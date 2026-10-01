@@ -62,10 +62,11 @@ docker run --rm --gpus all nvidia/cuda:12.8.1-base-ubuntu22.04 nvidia-smi
 git clone git@github.com:Zhshao11/evalmatcher.git
 cd evalmatcher
 
-# ② 准备权重与数据集（不在仓库里，见第 4 节），假设放到了：
-#      ~/evalmatcher-weights
-#      ~/evalmatcher-data
-#      ~/evalmatcher-output      （空目录即可，会自动创建）
+# ② 下载权重与数据集（不在仓库里，约 324 MB，见第 4 节）
+pip install gdown                  # Google Drive 大文件需要它
+./scripts/fetch_assets.sh          # 落到仓库下的 weights/ 与 data/
+
+mkdir -p ~/evalmatcher-output      # 结果输出目录（空目录即可，会自动创建）
 
 # ③ 写 .env —— 只需要改三个路径
 cp .env.example .env
@@ -129,8 +130,22 @@ config/server.yaml
 
 ## 4. 权重与数据集
 
-两者都不在仓库、不进镜像（`*.pth / *.ckpt / *.pt` 已被 `.gitignore` 排除）。
-按下面的结构准备好目录，把绝对路径填进 `.env` 即可。
+两者都不在仓库、不进镜像（`*.pth / *.ckpt / *.pt` 已被 `.gitignore` 排除），
+放在 Google Drive 上：
+
+| 内容 | 链接 | 大小 |
+|---|---|---|
+| 数据集（VIS_SAR test） | https://drive.google.com/file/d/1DHfI1j4yELughX-ljwvNofgofMS8lHU2/view | 约 125 MB |
+| 权重（5 个方法） | https://drive.google.com/file/d/1Y6D-Fu8-99f7buNCag1tH4C_JVO059Cy/view | 约 199 MB |
+
+一键落盘（脚本里已经写好了这两个链接，直接跑）：
+
+```bash
+pip install gdown            # Google Drive 大文件有"病毒扫描确认页"，curl 直接下会拿到 HTML
+./scripts/fetch_assets.sh    # -> 仓库下 weights/ 与 data/，并自动解压、抹平多余目录层级
+```
+
+也可以手动：浏览器打开上面两个链接下载，按下面的结构解压，再把绝对路径填进 `.env`。
 
 ### 权重目录（`WEIGHTS_DIR`）
 
@@ -149,7 +164,7 @@ config/server.yaml
     └── minima_loftr.ckpt           # LoFTR
 ```
 
-↑ 只需评测用到的 5 个方法，约 **190 MB**。文件名与 `config/server.yaml` 的
+↑ 只需评测用到的 5 个方法，约 **199 MB**。文件名与 `config/server.yaml` 的
 `methods[*].weights[].file` 一一对应；想换文件名，改 `server.yaml` 即可。
 
 ### 数据集目录（`DATASET_DIR`）
@@ -163,13 +178,10 @@ config/server.yaml
         └── transforms/   424 个 .mat（如 1.png.12.mat / 1.png.21.mat，真值单应）
 ```
 
-↑ 只需 `test/` 约 **122 MB**（`train/` 是训练用的，评测不需要）。
+↑ 只需 `test/` 约 **125 MB**（`train/` 是训练用的，评测不需要）。
 
-拿到网盘直链后可以这样落盘：
-
-```bash
-WEIGHTS_URL="<网盘直链>" DATASET_URL="<网盘直链>" ./scripts/fetch_assets.sh
-```
+> 下载后脚本会打印目录检查；如果提示没找到 `VIS_SAR/test/{VIS,SAR,transforms}`，
+> 说明压缩包多包了一层目录，手动把内容上移一层即可。
 
 ---
 
