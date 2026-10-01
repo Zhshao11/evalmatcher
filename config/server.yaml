@@ -1,0 +1,92 @@
+# =============================================================================
+# EvalMatcher 服务端配置（算法 / 运行参数）
+# -----------------------------------------------------------------------------
+# 分工原则：
+#   .env             —— 部署相关（端口、宿主机挂载路径、GPU 编号、配置文件路径）
+#   config/server.yaml —— 算法相关（方法、权重文件、数据集、输出、device、阈值）
+#   两者不要混：改部署不动这个文件，改算法不动 .env
+#
+# 路径全部写成**容器内部固定路径**，不依赖任何具体机器的目录结构：
+#   /app/weights  宿主机权重目录的只读挂载点（.env 中 WEIGHTS_DIR 指定宿主机侧）
+#   /app/data     宿主机数据集目录的只读挂载点（.env 中 DATASET_DIR）
+#   /app/output   宿主机结果目录的可写挂载点（.env 中 OUTPUT_DIR）
+#
+# 环境覆盖（优先级高于本文件，用于 .env 改了挂载点却不想改本文件的场景）：
+#   EM_WEIGHTS_DIR / EM_DATASET_DIR / EM_OUTPUT_DIR / EM_DEVICE / EM_PORT
+# =============================================================================
+
+server:
+  host: 0.0.0.0
+  port: 8000                 # 容器内监听端口；对外端口由 .env 的 API_PORT 映射
+  device: cuda               # cuda | cpu（cpu 仅用于冒烟，评测很慢）
+  api_prefix: /api
+
+paths:
+  weights_dir: /app/weights  # 只读挂载；模型权重不进镜像、不进 git
+  dataset_dir: /app/data     # 只读挂载；数据集不进镜像、不进 git
+  output_dir: /app/output    # 可写挂载；评测存档 / 导出报表 / 连线图都写这里
+  # 第三方算法代码里写死了相对路径（third/...），启动时按 weights 的 link 建软链，
+  # 这样算法代码一行都不用改。app_root 就是 server/ 在容器里的路径。
+  app_root: /app
+
+dataset:
+  subsets: [VIS_SAR]         # 数据目录下形如 <SUBSET>/test/<VIS>/<SAR>/<transforms>
+
+eval:
+  success_thres: 3           # 匹配点到真值单应投影偏差 <= 3px 才算正确匹配
+  min_ncm: 10                # 帧内正确匹配数 >= 10 才算成功帧
+  ransac_thres: 2            # pydegensac 的 RANSAC 阈值
+  num_kps_choices: [1024, 2048, 4096]
+  default_num_kps: 1024
+  viz_max_width: 1800        # 连线图最大宽度（超过则等比缩放）
+
+# -----------------------------------------------------------------------------
+# 方法清单
+#   id    : matcher.py 里的注册名（内部标识，不要改）
+#   label : 对外显示名（页面上显示这个）
+#   weights: file = 相对 weights_dir 的路径；link = 容器内算法代码期望的路径
+# -----------------------------------------------------------------------------
+methods:
+  - id: d2net
+    label: d2net
+    enabled: true
+    weights:
+      - file: d2net/d2_tf.pth
+        link: third/d2net/models/d2_tf.pth
+
+  - id: redfeat
+    label: redfeat
+    enabled: true
+    weights:
+      - file: redfeat/VIS_SAR.pth
+        link: third/redfeat/Pretrained/VIS_SAR.pth
+      - file: redfeat/VIS_IR.pth
+        link: third/redfeat/Pretrained/VIS_IR.pth
+      - file: redfeat/VIS_NIR.pth
+        link: third/redfeat/Pretrained/VIS_NIR.pth
+
+  # 对外叫 HLDD；id 仍是 Ours，因为 matcher.py / third/Ours 按这个名字分发
+  - id: Ours
+    label: HLDD
+    enabled: true
+    weights:
+      - file: ours/2024_10_10-10_44_34_VIS_SAR_106000.pth
+        link: third/Ours/models/2024_10_10-10_44_34_VIS_SAR_106000.pth
+      - file: ours/2024_10_21-10_14_50_VIS_IR_62500.pth
+        link: third/Ours/models/2024_10_21-10_14_50_VIS_IR_62500.pth
+      - file: ours/2024_11_02-09_43_00_VIS_NIR_30000.pth
+        link: third/Ours/models/2024_11_02-09_43_00_VIS_NIR_30000.pth
+
+  - id: XoFTR
+    label: XoFTR
+    enabled: true
+    weights:
+      - file: minima/weights_xoftr_640.ckpt
+        link: third/MINIMA/weights/weights_xoftr_640.ckpt
+
+  - id: LoFTR
+    label: LoFTR
+    enabled: true
+    weights:
+      - file: minima/minima_loftr.ckpt
+        link: third/MINIMA/weights/minima_loftr.ckpt

@@ -1,0 +1,48 @@
+2024/10/10:
+
+1. batch size: 
+    2 < 4 < 8 ~ 10,  取8
+
+2. sample_n: 
+    9600 not work, 取4096
+
+# Softmax函数中的温度参数可以控制Softmax函数输出的“平滑度”,
+# 从而影响模型的预测结果。较高的温度会使Softmax函数的输出更加平滑,而较低的温度会使输出更加尖锐。
+# 通常情况下,温度参数的取值范围在0.1到1之间。可以通过实验和调参来选择最适合的温度参数。
+3. softmax temperature: 
+    1.0 < 0.1 < 0.2
+    temp = 1.0, 0.1 not work
+    取0.2
+
+4. feature norm: 
+    can not convergence
+    not work
+
+# 利用图内特征区分，促进图间特征分离
+5. conf_matrix11 and conf_matrix22: 
+    loss = F.nll_loss(conf_matrix12, target) + F.nll_loss(conf_matrix21, target) + F.nll_loss(conf_matrix11, target) + F.nll_loss(conf_matrix22, target)
+    not work
+
+6. offset radius:
+    radius : 2 > 4 > 6 > 8
+    offset mask = radius
+    
+7. offset mask margin:
+    radius = 2
+    offset mask : 2~3~4
+    not work
+
+8. training res: default=(224, 160), 变小一点? 行列一致?:
+    (240, 240) not work
+    (144, 144) not work
+    (192, 192) not work
+    (144, 192) not work
+    维持 (224, 160)
+
+
+9. conf_matrix11, conf_matrix22 = w1, w2 for conf_matrix12 and conf_matrix21: 
+    w12 = F.softmax(diag_11 / mean_11, dim=-1), w21 = F.softmax(diag_22 / mean_22, dim=-1), not work
+    w12 = F.softmax(mean_11 / diag_11, dim=-1), w21 = F.softmax(mean_22 / diag_22, dim=-1), not work
+
+10. lr
+    3e-4 > 1e-4 > 3e-5 > 5e-4

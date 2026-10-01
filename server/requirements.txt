@@ -1,0 +1,31 @@
+# =============================================================================
+# EvalMatcher 服务端 Python 依赖
+# -----------------------------------------------------------------------------
+# 版本取自实际跑通的环境（Python 3.10.20 / torch 2.11.0+cu128 / RTX 5090）：
+#   numpy 2.2.6, opencv-python 5.0.0, kornia 0.8.2, pillow 12.3.0, scipy 1.15.3,
+#   pydegensac 0.3.0, flask 3.1.3, einops 0.8.2, yacs 0.1.8, pytorch-lightning 2.6.6
+#
+# torch / torchvision **不在这里**：它们由 Dockerfile 从 PyTorch 官方 CUDA 源单独装，
+# 版本要和宿主机驱动支持的 CUDA 对齐（见 Dockerfile 的 TORCH_VERSION / CUDA_TAG）。
+# 想换 torch 版本请改那两个 ARG，不要在这里改。
+# =============================================================================
+
+flask>=3.0,<4
+pyyaml>=6.0
+numpy>=1.24,<3
+
+# 视觉与匹配算法
+opencv-python>=4.8
+scipy>=1.10
+pillow>=10
+kornia>=0.7
+einops>=0.6
+yacs>=0.1.8
+pytorch-lightning>=2.0
+tqdm>=4.60
+
+# Homography 指标用的 DEGENSAC（原脚本同款）
+pydegensac>=0.1
+
+# 第三方算法画图/调试会用到
+matplotlib>=3.5

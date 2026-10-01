@@ -1,0 +1,94 @@
+# =============================================================================
+# EvalMatcher 一键部署
+#   cp .env.example .env     # 填好宿主机路径
+#   docker compose up -d --build
+#
+# 两个服务：
+#   server  算法服务（Flask + PyTorch，需要 GPU）
+#   client  前端站点（nginx，把 /api 反代到 server）
+#
+# 挂载（全部在 .env 里填宿主机路径）：
+#   WEIGHTS_DIR -> /app/weights  只读（模型权重，不进镜像）
+#   DATASET_DIR -> /app/data     只读（数据集，不进镜像）
+#   OUTPUT_DIR  -> /app/output   可写（评测存档 / 报表 / 连线图）
+#   config/server.yaml -> /app/config/server.yaml 只读
+# =============================================================================
+
+services:
+
+  server:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+      # torch 版本与 CUDA 源（和宿主机驱动对齐）
+      args:
+        TORCH_VERSION: ${TORCH_VERSION:-2.11.0}
+        TORCHVISION_VERSION: ${TORCHVISION_VERSION:-0.26.0}
+        CUDA_TAG: ${CUDA_TAG:-cu128}
+    image: evalmatcher-server:latest
+    container_name: evalmatcher-server
+    restart: unless-stopped
+
+    environment:
+      # ---- 容器内的固定路径（服务端代码只读这些，不认宿主机目录）----
+      SERVER_CONFIG: /app/config/server.yaml
+      EM_WEIGHTS_DIR: /app/weights
+      EM_DATASET_DIR: /app/data
+      EM_OUTPUT_DIR: /app/output
+      EM_DEVICE: ${DEVICE:-cuda}
+      # 用哪块 GPU。CUDA_VISIBLE_DEVICES 会把指定物理卡重编号成容器内的逻辑 0
+      CUDA_VISIBLE_DEVICES: ${GPU_IDS:-0}
+      NVIDIA_VISIBLE_DEVICES: ${GPU_IDS:-0}
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      TZ: ${TZ:-Asia/Shanghai}
+
+    volumes:
+      # :ro —— 权重与数据集只读，容器里改不动，误操作也毁不了原始数据
+      - ${WEIGHTS_DIR:?请在 .env 里设置 WEIGHTS_DIR（宿主机权重目录）}:/app/weights:ro
+      - ${DATASET_DIR:?请在 .env 里设置 DATASET_DIR（宿主机数据集目录）}:/app/data:ro
+      - ${OUTPUT_DIR:?请在 .env 里设置 OUTPUT_DIR（宿主机结果输出目录）}:/app/output:rw
+      - ${SERVER_CONFIG_FILE:-./config/server.yaml}:/app/config/server.yaml:ro
+
+    # ---- GPU 支持：需要宿主机装好 NVIDIA Container Toolkit ----
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["${GPU_IDS:-0}"]
+              capabilities: [gpu]
+
+    ports:
+      # 直接调后端时用（调试 / 前后端分开部署）。只走 nginx 的话可以注释掉。
+      - "${API_PORT:-8000}:8000"
+
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/api/health',timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      start_period: 60s
+      retries: 3
+
+  client:
+    build:
+      context: .
+      dockerfile: client/Dockerfile
+    image: evalmatcher-client:latest
+    container_name: evalmatcher-client
+    restart: unless-stopped
+
+    environment:
+      # 同源部署就用默认的 http://server:8000；
+      # 前后端分开部署时改成外部地址，例如 https://api.example.com
+      API_UPSTREAM: ${API_UPSTREAM:-http://server:8000}
+      # 只有把前端放到别的域名下才需要（会写成 window.__EM_API_BASE__）
+      EXTERNAL_API_BASE: ${EXTERNAL_API_BASE:-}
+      TZ: ${TZ:-Asia/Shanghai}
+
+    ports:
+      - "${WEB_PORT:-8080}:80"
+
+    depends_on:
+      server:
+        condition: service_healthy

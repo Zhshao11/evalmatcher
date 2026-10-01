@@ -1,0 +1,19 @@
+# 构建上下文里不需要的东西（server/third 的代码必须进，权重和数据不能进）
+.git
+.github
+.env
+.env.*
+data/
+result/
+output/
+deliverables/
+docs/
+**/__pycache__/
+**/*.py[cod]
+**/.DS_Store
+**/*.pth
+**/*.ckpt
+**/*.pt
+**/*.onnx
+third/MINIMA/assets/demo2.gif
+third/MINIMA/third_party/LoFTR/assets/loftr-github-demo.gif

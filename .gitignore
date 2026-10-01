@@ -1,0 +1,40 @@
+# ---- 部署配置（含宿主机绝对路径、端口，绝不入库）----
+.env
+.env.*
+!.env.example
+
+# ---- 模型权重：不进 git，也不进镜像，从网盘单独下载 ----
+*.pth
+*.ckpt
+*.pt
+*.onnx
+*.pkl
+*.safetensors
+third/**/weights/
+!third/**/weights/download.sh
+
+# ---- 数据集 / 结果 / 交付物：体积大且属于运行产物 ----
+data/
+result/
+output/
+deliverables/
+web/evidence/
+evidence/
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# ---- 系统 / 编辑器 ----
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# ---- 两个大得离谱的示例 gif（第三方仓库自带，与算法无关）----
+third/MINIMA/assets/demo2.gif
+third/MINIMA/third_party/LoFTR/assets/loftr-github-demo.gif

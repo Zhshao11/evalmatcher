@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VIS_SAR 数据集评测 · 在线实时评测</title>
+<style>
+  :root{
+    --bg:#f7f7f5; --panel:#ffffff; --border:rgba(0,0,0,.10); --border2:rgba(0,0,0,.18);
+    --tx:#1f1f1f; --tx2:#5f5e5a; --tx3:#8a8a85;
+    --blue:#185FA5; --blue-l:#85B7EB; --amber:#BA7517; --amber-l:#FAC775;
+    --green:#3B6D11; --green-l:#C0DD97; --red:#A32D2D; --purple:#534AB7;
+    --radius:10px; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--tx);
+       font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+       font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1120px;margin:0 auto;padding:34px 20px 80px}
+  h1{font-size:22px;font-weight:500;margin:0 0 6px}
+  .sub{color:var(--tx2);font-size:13px;margin:0 0 22px}
+  .card{background:var(--panel);border:.5px solid var(--border);border-radius:var(--radius);
+        padding:20px 22px;margin-bottom:18px}
+  h2{font-size:15px;font-weight:500;margin:0 0 4px;display:flex;align-items:center;gap:8px}
+  .h2note{color:var(--tx3);font-size:12px;margin:0 0 16px}
+  /* --- 指标定义 --- */
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));
+           gap:0 30px;margin:0}
+  .metrics>div{display:flex;gap:12px;align-items:baseline;padding:7px 0;
+               border-bottom:.5px solid var(--border)}
+  .metrics dt{font-family:var(--mono);font-size:12.5px;color:var(--blue);
+              font-weight:500;white-space:nowrap;min-width:120px}
+  .metrics dd{margin:0;font-size:12.5px;color:var(--tx2);line-height:1.55}
+  /* --- 控制台 --- */
+  .row{display:flex;flex-wrap:wrap;gap:22px;align-items:flex-start;margin-bottom:16px}
+  .field{display:flex;flex-direction:column;gap:7px}
+  .flabel{font-size:12px;color:var(--tx2);font-weight:500}
+  .mchips{display:flex;flex-wrap:wrap;gap:8px}
+  .mchip{border:.5px solid var(--border2);border-radius:7px;padding:5px 12px;font-size:12.5px;
+         font-family:var(--mono);cursor:pointer;user-select:none;background:#fff;color:var(--tx2);
+         transition:all .12s}
+  .mchip.on{background:#e8f0fa;border-color:var(--blue);color:var(--blue);font-weight:500}
+  select,input[type=number]{font:inherit;font-size:13px;padding:6px 9px;border:.5px solid var(--border2);
+        border-radius:7px;background:#fff;color:var(--tx);min-width:110px}
+  .seg{display:inline-flex;border:.5px solid var(--border2);border-radius:7px;overflow:hidden}
+  .seg button{font:inherit;font-size:12.5px;padding:6px 13px;border:0;background:#fff;color:var(--tx2);
+              cursor:pointer;border-right:.5px solid var(--border2)}
+  .seg button:last-child{border-right:0}
+  .seg button.on{background:#e8f0fa;color:var(--blue);font-weight:500}
+  .btn{font:inherit;font-size:14px;font-weight:500;padding:10px 26px;border-radius:8px;border:0;
+       background:var(--blue);color:#fff;cursor:pointer;transition:opacity .15s}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn.ghost{background:#fff;color:var(--tx2);border:.5px solid var(--border2)}
+  .hint{font-size:12px;color:var(--tx3);margin-top:10px}
+  /* --- 进度 --- */
+  .bar{height:8px;border-radius:5px;background:#ecebe6;overflow:hidden;margin:4px 0 10px}
+  .bar>i{display:block;height:100%;background:var(--blue);width:0;transition:width .35s ease}
+  .pstat{display:flex;flex-wrap:wrap;gap:6px 20px;font-size:12.5px;color:var(--tx2);font-family:var(--mono)}
+  .pstat b{color:var(--tx);font-weight:500}
+  .log{margin-top:14px;background:#fbfaf7;border:.5px solid var(--border);border-radius:8px;
+       padding:10px 14px;font-family:var(--mono);font-size:12px;color:var(--tx2);
+       max-height:170px;overflow:auto;white-space:pre-wrap;line-height:1.75}
+  .badge{font-size:11px;padding:1px 8px;border-radius:20px;font-family:var(--mono);font-weight:500}
+  .badge.run{background:#fff3e0;color:var(--amber)}
+  .badge.done{background:#eaf3e0;color:var(--green)}
+  .badge.err{background:#fbeaea;color:var(--red)}
+  .badge.idle{background:#f1efe8;color:var(--tx3)}
+  /* --- 表格 --- */
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:9px 10px;text-align:right;border-bottom:.5px solid var(--border)}
+  th:first-child,td:first-child{text-align:left}
+  thead th{color:var(--tx2);font-weight:500;font-size:12px;white-space:nowrap}
+  tbody tr:hover{background:#fafaf8}
+  .best{font-weight:600;color:var(--green)}
+  .mname{font-family:var(--mono);font-size:12.5px}
+  .mname.hldd{color:var(--blue);font-weight:600}
+  .dim{color:var(--tx3)}
+  .num{font-family:var(--mono)}
+  .fail{color:var(--red)}
+  .ok{color:var(--green)}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--tx2);margin-bottom:10px}
+  .legend span{display:flex;align-items:center;gap:5px}
+  .sw{width:10px;height:10px;border-radius:2px}
+  canvas.chart{width:100%;display:block}
+  footer{color:var(--tx3);font-size:12px;margin-top:26px;line-height:1.85}
+  code{font-family:var(--mono);background:#f1efe8;padding:1px 5px;border-radius:4px;font-size:12px}
+  .note{background:#fbfaf7;border-left:2px solid var(--amber-l);padding:10px 14px;
+        font-size:12.5px;color:var(--tx2);border-radius:0 6px 6px 0;margin-top:14px}
+  .hidden{display:none !important}
+  .preview{display:flex;gap:12px;flex-wrap:wrap;margin-top:12px}
+  .preview figure{margin:0;flex:1 1 220px;max-width:300px}
+  .preview img{width:100%;border-radius:6px;border:.5px solid var(--border);display:block}
+  .preview figcaption{font-size:11.5px;color:var(--tx3);margin-top:5px;font-family:var(--mono)}
+  details{padding:8px 0}
+  summary{cursor:pointer;font-size:13px;color:var(--tx2);padding:6px 0;font-family:var(--mono)}
+  summary:hover{color:var(--tx)}
+  .vizgrid{margin-top:12px}
+  .vizrow{margin:14px 0}
+  .vizrow h4{font-size:12.5px;font-weight:500;margin:0 0 6px;font-family:var(--mono);color:var(--tx2)}
+  .vizrow img{width:100%;border-radius:6px;border:.5px solid var(--border);display:block;background:#101014}
+  .spinner{display:inline-block;width:11px;height:11px;border:2px solid rgba(0,0,0,.15);
+           border-top-color:var(--blue);border-radius:50%;animation:sp .7s linear infinite;vertical-align:-1px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  /* --- 导出与取证 --- */
+  .expsplit{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;margin-bottom:22px}
+  .expblock{border:.5px solid var(--border);border-radius:8px;padding:14px 16px;background:#fbfaf7}
+  .expblock h4{font-size:13px;font-weight:500;margin:0 0 7px;font-family:var(--mono);color:var(--tx)}
+  .expblock p{margin:0 0 12px;font-size:12px;color:var(--tx3);line-height:1.65}
+  .vizdl{display:flex;flex-direction:column;gap:8px}
+  .vizline{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+           border:.5px solid var(--border);border-radius:8px;padding:9px 13px;background:#fff}
+  .vizline .vname{font-family:var(--mono);font-size:12.5px;min-width:76px;color:var(--blue);font-weight:500}
+  .vizline .vmeta{font-size:12px;color:var(--tx3);font-family:var(--mono);flex:1 1 260px}
+  .vizline .btn{padding:5px 15px;font-size:12.5px}
+  .gpubox{margin:16px 0 0;background:#fbfaf7;border:.5px solid var(--border);border-radius:8px;
+          padding:12px 14px;font-family:var(--mono);font-size:11.5px;color:var(--tx2);
+          max-height:360px;overflow:auto;white-space:pre;line-height:1.55}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>VIS_SAR 数据集评测 · 在线实时评测</h1>
+
+  <div class="card">
+    <h2>评测指标</h2>
+    <dl class="metrics">
+      <div><dt>Success Rate</dt><dd>正确匹配数 ≥ 10 的图像对占比，衡量"能匹配上"的比例</dd></div>
+      <div><dt>Average Matches</dt><dd>每对图像的平均匹配数，反映匹配的稠密程度</dd></div>
+      <div><dt>NCM</dt><dd>平均正确匹配数（只统计成功帧）</dd></div>
+      <div><dt>ME</dt><dd>正确匹配的平均重投影误差，单位像素（只统计成功帧）</dd></div>
+      <div><dt>RMSE</dt><dd>正确匹配重投影误差的均方根，单位像素（只统计成功帧）</dd></div>
+      <div><dt>Average Time</dt><dd>每对图像的平均匹配耗时，单位秒</dd></div>
+      <div><dt>MMA</dt><dd>各误差阈值（1–10 px）下正确匹配占比的平均值，越高越好</dd></div>
+      <div><dt>Homography</dt><dd>估计单应与真值单应的四角平均位移 ≤ 阈值的图像占比</dd></div>
+    </dl>
+    <div class="hint">
+      判断"正确"的口径：匹配点到真值单应投影的偏差 ≤ 3 px；一对图中正确匹配数 ≥ 10 才算成功帧。
+    </div>
+  </div>
+
+  <!-- ============ 控制台 ============ -->
+  <div class="card">
+    <h2>评测控制台 <span id="statusBadge" class="badge idle">未开始</span></h2>
+    <p class="h2note">选择方法与评测范围，点「开始评测」；范围越大耗时越长。</p>
+
+    <div class="row">
+      <div class="field">
+        <span class="flabel">评测方法</span>
+        <div class="mchips" id="methodChips"></div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <span class="flabel">评测范围</span>
+        <div class="seg" id="scopeSeg">
+          <button data-mode="single">单对</button>
+          <button data-mode="first">前 N 对</button>
+          <button data-mode="all" class="on">全部 <span id="allCount">424</span> 对</button>
+        </div>
+      </div>
+      <div class="field" id="fSingle" style="display:none">
+        <span class="flabel">样本对</span>
+        <select id="pairSelect"></select>
+      </div>
+      <div class="field" id="fFirst" style="display:none">
+        <span class="flabel">N（对数）</span>
+        <input type="number" id="nInput" value="10" min="1" max="424" step="1">
+      </div>
+      <div class="field">
+        <span class="flabel">关键点数</span>
+        <select id="kpsSelect"></select>
+      </div>
+    </div>
+
+    <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+      <button class="btn" id="runBtn">开始评测</button>
+      <span class="hint" id="runHint" style="margin:0"></span>
+    </div>
+    <div class="hint" id="scopeHint"></div>
+
+    <!-- 换浏览器/清缓存后，服务端仍留着上一次运行时的手动入口（不自动接管，免得顶掉默认设置） -->
+    <div class="hidden" id="resumeOffer"></div>
+
+    <div class="preview hidden" id="preview"></div>
+  </div>
+
+  <!-- ============ 进度 ============ -->
+  <div class="card hidden" id="progressCard">
+    <h2>运行状态</h2>
+    <p class="h2note" id="progNote">—</p>
+    <div class="bar"><i id="progBar"></i></div>
+    <div class="pstat">
+      <span>已完成 <b id="pDone">0</b> / <b id="pTotal">0</b> 对·方法</span>
+      <span>当前方法 <b id="pMethod">—</b></span>
+      <span>当前样本 <b id="pPair">—</b></span>
+      <span>已用时 <b id="pElapsed">0s</b></span>
+    </div>
+    <div class="log" id="logBox"></div>
+  </div>
+
+  <!-- ============ 结果 ============ -->
+  <div class="card hidden" id="resultCard">
+    <h2>本次评测结果 <span id="resultTag" class="badge idle"></span></h2>
+    <p class="h2note" id="resultNote"></p>
+    <table id="mainTable">
+      <thead><tr>
+        <th>Method</th><th>Success Rate ↑</th><th>Avg Matches</th><th>NCM ↑</th>
+        <th>ME ↓</th><th>RMSE ↓</th><th>Avg Time (s) ↓</th><th>失败数</th>
+        <th class="dim">离线全量 (424 对)</th>
+      </tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="note" id="failNote"></div>
+  </div>
+
+  <div class="card hidden" id="chartCard">
+    <h2>MMA 曲线（1–10 px）</h2>
+    <p class="h2note">每个阈值下「正确匹配占比」在本次评测样本上的均值 · 越高越好</p>
+    <div class="legend" id="legendMMA"></div>
+    <canvas class="chart" id="cMMA" height="300"></canvas>
+  </div>
+
+  <div class="card hidden" id="chartCard2">
+    <h2>Homography 曲线（1–10 px）</h2>
+    <p class="h2note">DEGENSAC 预测单应与真值的四角平均位移 ≤ 阈值的占比 · 越高越好</p>
+    <div class="legend" id="legendH"></div>
+    <canvas class="chart" id="cH" height="300"></canvas>
+    <div class="note" style="margin-top:16px">
+      <strong>这一列每次跑都会略有不同，属正常现象。</strong>
+      它依赖 <code>pydegensac.findHomography</code> 估计出的单应，而 DEGENSAC 是随机采样算法、
+      未固定随机种子：每次采样序列不同，少数图会在阈值两侧翻面，差值通常是 1/样本数 的整数倍。
+      其余指标（Success Rate / Average Matches / NCM / ME / RMSE / MMA）只用<strong>真值</strong>单应，
+      是确定性的，可逐位复现。
+    </div>
+  </div>
+
+  <div class="card hidden" id="vizCard">
+    <h2>匹配连线</h2>
+    <p class="h2note">绿线 = 到真值单应重投影误差 ≤ 3px（判为正确）；红线 = 超过 3px。</p>
+    <div class="vizgrid" id="vizGrid"></div>
+  </div>
+
+  <div class="card hidden" id="detailCard">
+    <h2>逐对明细</h2>
+    <p class="h2note">每张图一行；正确匹配数 &lt; 10 的图标红，其 ME / RMSE 不参与均值统计。</p>
+    <div id="detailBox"></div>
+  </div>
+
+  <!-- ============ 导出与取证 ============ -->
+  <div class="card hidden" id="exportCard">
+    <h2>导出与取证 <span id="exportTag" class="badge idle"></span></h2>
+    <p class="h2note">给测评报告用的三样东西：逐对明细报表、匹配连线图打包、GPU 运行证据。</p>
+
+    <div class="expsplit">
+      <div class="expblock">
+        <h4>逐对明细导出报表（.xlsx）</h4>
+        <p id="xlsxHint">—</p>
+        <button class="btn" id="xlsxBtn">导出 XLSX</button>
+      </div>
+      <div class="expblock">
+        <h4>GPU 运行证据</h4>
+        <p>服务端真实执行 <code>nvidia-smi</code> 并读取 torch 设备信息，输出未经加工，可直接截图归档。</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn ghost" id="gpuBtn">读取</button>
+          <button class="btn ghost" id="gpuDlBtn">下载 .txt</button>
+        </div>
+      </div>
+    </div>
+
+    <h4 style="font-size:13px;font-weight:500;margin:0 0 4px;font-family:var(--mono)">匹配连线图打包</h4>
+    <p class="h2note" id="vizNote">—</p>
+    <div class="vizdl" id="vizDl"></div>
+
+    <pre class="gpubox" id="gpuBox">（点上方「读取」从服务端取一次 nvidia-smi 输出）</pre>
+  </div>
+
+</div>
+
+<script>
+/* ------------------------------------------------------------------ *
+ * 离线全量基准（424 对）：仅用作对照列，不参与"本次评测"的计算
+ * 来源：result/<method>/1024/VIS_SAR/VIS_SAR.txt
+ * ------------------------------------------------------------------ */
+const OFFLINE = {
+  d2net:  {sr:0.36792, am:204.83962, ncm:17.28205, me:1.92525, rmse:2.05160, at:0.12923, failed:268},
+  redfeat:{sr:0.82783, am:439.04245, ncm:41.96581, me:1.91826, rmse:2.04561, at:0.06727, failed:73},
+  HLDD:   {sr:0.94811, am:391.47877, ncm:96.19652, me:1.89848, rmse:2.02489, at:0.06097, failed:22},
+  XoFTR:  {sr:0.65330, am:387.73349, ncm:76.77617, me:1.88124, rmse:2.01235, at:0.19464, failed:147},
+  LoFTR:  {sr:0.22642, am:175.42453, ncm:24.88542, me:1.90174, rmse:2.02504, at:0.19106, failed:328}
+};
+const COLORS = {d2net:'#888780', redfeat:'#2E8B57', HLDD:'#185FA5', XoFTR:'#BA7517', LoFTR:'#A32D2D'};
+const HLDD = 'HLDD';
+
+/* 内部 id 与对外显示名分离。
+   'Ours' 是代码里的注册名（matcher 分发、评测存档 npz 的文件名、?method=Ours 都按它走），
+   不能改；对外一律显示 HLDD —— 不管实现是什么，名字就叫 HLDD。
+   映射取自后端 /api/config 的 labels，以后改名只改后端一处；CFG 还没到时用内置兜底。 */
+const ID2NAME_FALLBACK = {d2net:'d2net', redfeat:'redfeat', Ours:'HLDD',
+                          XoFTR:'XoFTR', LoFTR:'LoFTR'};
+const disp = m => ((CFG && CFG.labels) ? (CFG.labels[m] || m) : (ID2NAME_FALLBACK[m] || m));
+
+/* 把"最近一次评测"记在 localStorage 里，刷新/重开标签页后能接回来。
+   只存 job_id 和控制台选项——逐对明细太大（424 对 × 5 方法），
+   不塞进浏览器，刷新后按需从 /api/job?pairs_for= 重新拉。 */
+const STORAGE_KEY = 'vis_sar_eval_last_job';
+
+let CFG = null;
+let state = {
+  // 存内部 id（Ours），不是显示名：要原样提交给 /api/evaluate；显示一律走 disp()
+  methods: ['d2net','redfeat','Ours','XoFTR','LoFTR'],
+  scopeMode: 'all',
+  jobId: null,
+  timer: null,
+  lastSnap: null,
+  pairsFetched: {}
+};
+
+/* ---------------------------- 工具 ---------------------------- */
+/* ---- API 地址：默认同源 /api（nginx 把 /api 反代到 server:8000）----
+   前后端分开部署时，用 window.__EM_API_BASE__ 注入外部地址（如 https://api.example.com）。
+   前端代码里不出现任何 localhost / IP / 域名。 */
+const API_BASE = (window.__EM_API_BASE__ || '/api').replace(/\/+$/, '');
+const apiUrl = p => API_BASE + p;
+const $ = s => document.querySelector(s);
+const jobIdNow = () => state.jobId;   // 连线图要带 job：用这次评测存的 matches 画，别重跑
+const fmt = (v, d=5) => (v === null || v === undefined || isNaN(v)) ? '—' : Number(v).toFixed(d);
+const pct = v => (v === null || v === undefined || isNaN(v)) ? '—' : (v*100).toFixed(2) + '%';
+const el = (tag, cls, html) => { const e = document.createElement(tag);
+  if (cls) e.className = cls; if (html !== undefined) e.innerHTML = html; return e; };
+
+/* ---------------------------- 初始化 ---------------------------- */
+async function boot() {
+  CFG = await (await fetch(apiUrl('/config'))).json();
+  $('#allCount').textContent = CFG.total_pairs.VIS_SAR;
+
+  // 方法多选
+  CFG.methods.forEach(m => {
+    const c = el('span','mchip on', disp(m));   // 显示 HLDD，data-method 仍是内部 id
+    c.dataset.method = m;
+    c.onclick = () => {
+      if (state.jobId && state.timer) { alert('评测进行中，先等它跑完'); return; }
+      c.classList.toggle('on');
+      state.methods = [...document.querySelectorAll('.mchip.on')].map(x => x.dataset.method);
+      if (!state.methods.length) { c.classList.add('on'); state.methods = [c.dataset.method]; }
+      updateHint();
+    };
+    $('#methodChips').appendChild(c);
+  });
+
+  // 关键点
+  CFG.num_kps_choices.forEach(k => {
+    const o = el('option'); o.value = k; o.textContent = k;
+    if (k === 2048) o.selected = true;
+    $('#kpsSelect').appendChild(o);
+  });
+
+  // 样本下拉
+  const pr = await (await fetch(apiUrl('/pairs?subset=VIS_SAR'))).json();
+  pr.names.forEach(n => { const o = el('option'); o.value = n; o.textContent = n;
+    $('#pairSelect').appendChild(o); });
+
+  // 范围切换
+  document.querySelectorAll('#scopeSeg button').forEach(b => {
+    b.onclick = () => {
+      if (state.jobId && state.timer) { alert('评测进行中，先等它跑完'); return; }
+      document.querySelectorAll('#scopeSeg button').forEach(x => x.classList.remove('on'));
+      b.classList.add('on');
+      state.scopeMode = b.dataset.mode;
+      syncScopeFields();
+      updateHint(); refreshPreview();
+    };
+  });
+  $('#pairSelect').onchange = refreshPreview;
+  $('#nInput').oninput = updateHint;
+  $('#kpsSelect').onchange = updateHint;
+  $('#runBtn').onclick = startRun;
+  bindExportUI();
+  syncScopeFields();
+  updateHint(); refreshPreview();
+
+  await restoreLastJob();
+}
+
+/* ---------------------- 控制台状态的两种同步 ---------------------- */
+function syncMethodChips() {
+  document.querySelectorAll('.mchip').forEach(c => {
+    c.classList.toggle('on', state.methods.includes(c.dataset.method));
+  });
+}
+
+function syncScopeSeg() {
+  document.querySelectorAll('#scopeSeg button').forEach(b => {
+    b.classList.toggle('on', b.dataset.mode === state.scopeMode);
+  });
+  syncScopeFields();
+}
+
+/* ---------------------- 刷新后接回上一次评测 ---------------------- */
+/* 自动接回只认 localStorage —— 也就是"同一台机器的同一个浏览器刷新"。
+   服务端当然也存着最近一次任务，但那是给换了浏览器/清了缓存的人用的：
+   只给一个手动入口，不自动恢复，否则会把控制台默认值（全部 424 对 / 2048）顶掉。 */
+async function restoreLastJob() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null'); } catch (e) { saved = null; }
+  if (saved && saved.jobId) { await doRestore(saved); return; }
+
+  let last = null;
+  try { last = await (await fetch(apiUrl('/last_job'))).json(); } catch (e) { return; }
+  if (last && last.job_id) askResume(last);
+}
+
+function askResume(last) {
+  const box = $('#resumeOffer');
+  const t = new Date((last.created || 0) * 1000);
+  const hhmm = `${String(t.getHours()).padStart(2,'0')}:${String(t.getMinutes()).padStart(2,'0')}`;
+  const st = last.status === 'done' ? '已完成' : (last.status === 'running' ? '进行中' : '出错过');
+  const wrap = el('div');
+  wrap.style.cssText = 'display:flex;gap:10px;align-items:center;flex-wrap:wrap';
+  const txt = el('span', 'hint');
+  txt.style.margin = '0';
+  txt.textContent = `服务端还留着上一次运行（${hhmm} · ${st}）：`
+    + `${last.scope_desc} · ${last.num_kps} kps · ${(last.methods || []).map(disp).join(', ')}。`;
+  const btn = el('button', 'btn ghost');
+  btn.style.cssText = 'padding:5px 14px;font-size:12.5px';
+  btn.textContent = '接回这次结果';
+  btn.onclick = () => {
+    box.classList.add('hidden'); box.innerHTML = '';
+    doRestore({ jobId: last.job_id, methods: last.methods,
+                scopeMode: (last.scope && last.scope.mode) || 'all',
+                scope: last.scope, numKps: last.num_kps });
+  };
+  wrap.appendChild(txt); wrap.appendChild(btn);
+  box.innerHTML = ''; box.appendChild(wrap);
+  box.classList.remove('hidden');
+}
+
+async function doRestore(saved) {
+  let snap;
+  try { snap = await (await fetch(apiUrl('/job?id=') + encodeURIComponent(saved.jobId))).json(); }
+  catch (e) { return; }
+  if (!snap || snap.error) {                       // 服务端已清掉/重启过 -> 放弃
+    try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+    return;
+  }
+
+  // 先把控制台恢复成"那次跑的时候"的样子，免得看到的设置和结果对不上
+  if (Array.isArray(saved.methods) && saved.methods.length) state.methods = saved.methods;
+  if (saved.scopeMode) state.scopeMode = saved.scopeMode;
+  if (saved.scope && saved.scope.mode === 'first' && saved.scope.n) $('#nInput').value = saved.scope.n;
+  if (saved.scope && saved.scope.mode === 'single' && saved.scope.name) $('#pairSelect').value = saved.scope.name;
+  if (saved.numKps) $('#kpsSelect').value = saved.numKps;
+  syncMethodChips(); syncScopeSeg(); updateHint(); refreshPreview();
+  $('#resumeOffer').classList.add('hidden');
+
+  state.jobId = saved.jobId;
+  state.lastSnap = snap;
+  try {                                            // 兜底成功也落一份，下次直接命中
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      jobId: saved.jobId, methods: snap.methods, scopeMode: state.scopeMode,
+      scope: snap.scope, numKps: snap.num_kps
+    }));
+  } catch (e) { /* 忽略 */ }
+  $('#progressCard').classList.remove('hidden');
+  $('#progNote').textContent =
+    `范围：${snap.scope_desc} · 方法：${snap.methods.map(disp).join(', ')} · ${snap.num_kps} kps`;
+  renderProgress(snap);
+  renderSummary(snap);
+
+  if (snap.status === 'running') {                 // 还在跑 -> 接着轮询
+    setBadge('run', '运行中');
+    $('#runBtn').disabled = true;
+    state.timer = setInterval(poll, 1500);
+  } else {
+    setBadge(snap.status === 'done' ? 'done' : 'err',
+             snap.status === 'done' ? '已完成' : '出错');
+    if (snap.status === 'done') await onFinished(snap);
+  }
+}
+
+function syncScopeFields() {
+  $('#fFirst').style.display  = state.scopeMode === 'first'  ? '' : 'none';
+  $('#fSingle').style.display = state.scopeMode === 'single' ? '' : 'none';
+}
+
+function currentScope() {
+  if (state.scopeMode === 'single') return {mode:'single', name: $('#pairSelect').value};
+  if (state.scopeMode === 'all')    return {mode:'all'};
+  return {mode:'first', n: Math.max(1, parseInt($('#nInput').value || '10', 10))};
+}
+
+/* 每对图 × 每方法的实测平均耗时（RTX 5090，取 10 对样本的 AverageTime）。
+   三档关键点数各测一次；数值含测量噪声，仅用于给个量级。
+   来源：GET /api/job 返回的 summaries[*].AverageTime。 */
+const EST = {
+  1024: {d2net:0.142, redfeat:0.059, HLDD:0.057, XoFTR:0.185, LoFTR:0.192},
+  2048: {d2net:0.201, redfeat:0.080, HLDD:0.057, XoFTR:0.190, LoFTR:0.229},
+  4096: {d2net:0.231, redfeat:0.061, HLDD:0.060, XoFTR:0.178, LoFTR:0.171}
+};
+
+function updateHint() {
+  const s = currentScope();
+  let txt;
+  if (s.mode === 'single') txt = `将评测 1 对：${s.name || '—'}`;
+  else if (s.mode === 'all') txt = `将评测全部 ${CFG ? CFG.total_pairs.VIS_SAR : 424} 对`;
+  else txt = `将评测前 ${s.n} 对`;
+  const est = EST[parseInt($('#kpsSelect').value, 10)] || EST[2048];
+  const np = s.mode === 'all' ? (CFG ? CFG.total_pairs.VIS_SAR : 424) : (s.mode === 'single' ? 1 : s.n);
+  // EST 是"匹配耗时"(match_time)，不含逐对算单应角点距离等的开销。
+  // 实测全量：1024 -> 340.7s/424 对，2048 -> 397s/424 对，比值约 1.25，故乘上这个系数。
+  const OVERHEAD = 1.25;
+  const per = OVERHEAD * state.methods.reduce((a,m) => a + (est[disp(m)] || 0.2), 0);
+  const secs = np * per;
+  const human = secs < 60 ? `${Math.max(1, Math.round(secs))} 秒`
+                          : `${Math.max(1, Math.round(secs / 60))} 分钟`;
+  $('#scopeHint').textContent = `${txt} · ${state.methods.length} 个方法`;
+  $('#runHint').textContent = state.methods.length
+    ? `预计约 ${human}（按当前设置估算）`
+    : '至少选一个方法';
+}
+
+async function refreshPreview() {
+  const box = $('#preview');
+  if (state.scopeMode !== 'single') { box.classList.add('hidden'); box.innerHTML=''; return; }
+  const name = $('#pairSelect').value;
+  box.classList.remove('hidden');
+  box.innerHTML = `
+    <figure><img src="${API_BASE}/image?subset=VIS_SAR&side=vis&name=${encodeURIComponent(name)}" alt="VIS">
+      <figcaption>VIS · ${name}</figcaption></figure>
+    <figure><img src="${API_BASE}/image?subset=VIS_SAR&side=sar&name=${encodeURIComponent(name)}" alt="SAR">
+      <figcaption>SAR · ${name}</figcaption></figure>`;
+}
+
+/* ---------------------------- 启动评测 ---------------------------- */
+async function startRun() {
+  if (!state.methods.length) { alert('至少选一个方法'); return; }
+  $('#runBtn').disabled = true;
+  state.pairsFetched = {};
+  const body = {
+    subset: 'VIS_SAR',
+    methods: state.methods,
+    num_kps: parseInt($('#kpsSelect').value, 10),
+    scope: currentScope()
+  };
+  try {
+    const r = await fetch(apiUrl('/evaluate'), {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(body)});
+    const j = await r.json();
+    if (!r.ok) { alert(j.error || '提交失败'); $('#runBtn').disabled = false; return; }
+    state.jobId = j.job_id;
+    try {                                        // 记下来，刷新后能接回
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        jobId: j.job_id, methods: state.methods, scopeMode: state.scopeMode,
+        scope: body.scope, numKps: body.num_kps
+      }));
+    } catch (e) { /* 隐私模式下写不了，忽略即可 */ }
+    $('#progressCard').classList.remove('hidden');
+    $('#resultCard').classList.add('hidden');
+    $('#chartCard').classList.add('hidden');
+    $('#chartCard2').classList.add('hidden');
+    $('#detailCard').classList.add('hidden');
+    $('#vizCard').classList.add('hidden');
+    $('#exportCard').classList.add('hidden');
+    $('#logBox').textContent = '';
+    $('#progNote').textContent = `范围：${j.seed.scope_desc} · 方法：${j.seed.methods.map(disp).join(', ')} · ${j.seed.num_kps} kps`;
+    setBadge('run', '运行中');
+    poll();
+    state.timer = setInterval(poll, 1500);
+  } catch (e) {
+    alert('请求失败：' + e);
+    $('#runBtn').disabled = false;
+  }
+}
+
+async function poll() {
+  if (!state.jobId) return;
+  let snap;
+  try { snap = await (await fetch(apiUrl('/job?id=') + state.jobId)).json(); }
+  catch (e) { return; }
+  if (snap.error) {                                // 任务被回收/服务重启过 -> 别再空转
+    clearInterval(state.timer); state.timer = null;
+    state.jobId = null;
+    $('#runBtn').disabled = false;
+    try { localStorage.removeItem(STORAGE_KEY); } catch (e) {}
+    setBadge('err', '任务已失效');
+    return;
+  }
+  state.lastSnap = snap;
+  renderProgress(snap);
+  renderSummary(snap);
+  if (snap.status !== 'running') {
+    clearInterval(state.timer); state.timer = null;
+    $('#runBtn').disabled = false;
+    setBadge(snap.status === 'done' ? 'done' : 'err',
+             snap.status === 'done' ? '已完成' : '出错');
+    if (snap.status === 'done') onFinished(snap);
+  }
+}
+
+function setBadge(cls, text) {
+  const b = $('#statusBadge'); b.className = 'badge ' + cls; b.textContent = text;
+}
+
+function renderProgress(snap) {
+  const p = snap.progress;
+  $('#progBar').style.width = (100 * p.pairs_done / Math.max(1, p.pairs_total)).toFixed(1) + '%';
+  $('#pDone').textContent = p.pairs_done;
+  $('#pTotal').textContent = p.pairs_total;
+  $('#pMethod').textContent = p.method || '—';
+  $('#pPair').textContent = p.pair_name || '—';
+  $('#pElapsed').textContent = snap.elapsed + 's';
+  const box = $('#logBox');
+  box.textContent = (snap.events || []).join('\n');
+  box.scrollTop = box.scrollHeight;
+}
+
+/* ---------------------------- 主指标表（边跑边填） ---------------------------- */
+const COLS = [
+  {k:'SuccessRate', d:5, best:'max'},
+  {k:'AverageMatches', d:2, best:'max'},
+  {k:'NCM', d:2, best:'max'},
+  {k:'ME', d:5, best:'min'},
+  {k:'RMSE', d:5, best:'min'},
+  {k:'AverageTime', d:5, best:'min'}
+];
+
+function renderSummary(snap) {
+  const ms = snap.methods.filter(m => snap.summaries[m]);
+  if (!ms.length) return;
+  $('#resultCard').classList.remove('hidden');
+  $('#resultTag').className = 'badge ' + (snap.status === 'running' ? 'run' : 'done');
+  $('#resultTag').textContent = snap.status === 'running'
+    ? `进行中 ${ms.length}/${snap.methods.length}`
+    : '本次实跑';
+  $('#resultNote').textContent =
+    `范围：${snap.scope_desc} · ${snap.num_kps} kps · 误差阈值 ${CFG.success_thres}px · 成功判据 ncm ≥ ${CFG.min_ncm}`;
+
+  const best = {};
+  COLS.forEach(c => {
+    if (!c.best) return;
+    const vals = ms.map(m => snap.summaries[m][c.k]).filter(v => v !== null && !isNaN(v));
+    if (vals.length) best[c.k] = (c.best === 'min') ? Math.min(...vals) : Math.max(...vals);
+  });
+
+  const tb = $('#mainTable tbody');
+  tb.innerHTML = '';
+  ms.forEach(m => {
+    const s = snap.summaries[m], off = OFFLINE[disp(m)] || {};
+    const tr = document.createElement('tr');
+    let html = `<td class="mname${disp(m)===HLDD?' hldd':''}">${disp(m)}</td>`;
+    COLS.forEach(c => {
+      const v = s[c.k];
+      const isBest = c.best && v !== null && Math.abs(v - best[c.k]) < 1e-9;
+      html += `<td class="num${isBest?' best':''}">${fmt(v, c.d)}</td>`;
+    });
+    html += `<td class="num ${s.failed_count>0?'fail':''}">${s.failed_count}</td>`;
+    html += `<td class="num dim">${off.sr!==undefined ? pct(off.sr)+' / '+fmt(off.ncm,2)+' / '+fmt(off.me,4) : '—'}</td>`;
+    tr.innerHTML = html;
+    tb.appendChild(tr);
+  });
+
+  $('#failNote').innerHTML =
+    `最后一列为离线全量基准（SR / NCM / ME），可与本次结果对照。逐对明细见下方。`;
+
+  drawChart('cMMA', 'legendMMA', ms, snap.summaries, 'MMA');
+  drawChart('cH', 'legendH', ms, snap.summaries, 'Homography');
+  $('#chartCard').classList.remove('hidden');
+  $('#chartCard2').classList.remove('hidden');
+}
+
+/* ---------------------------- 轻量 canvas 折线图（无外部依赖） ---------------------------- */
+function drawChart(canvasId, legendId, methods, summaries, key) {
+  const cv = document.getElementById(canvasId);
+  const dpr = window.devicePixelRatio || 1;
+  const W = cv.clientWidth || 900, H = 300;
+  cv.width = W * dpr; cv.height = H * dpr;
+  cv.style.height = H + 'px';
+  const g = cv.getContext('2d');
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, W, H);
+
+  const padL = 52, padR = 16, padT = 14, padB = 34;
+  const iw = W - padL - padR, ih = H - padT - padB;
+  const X = i => padL + iw * (i / 9);
+  const Y = v => padT + ih * (1 - Math.max(0, Math.min(1, v)));
+
+  // s.m = 内部 id（查 summaries 用），s.n = 对外显示名（查配色、画图例用）
+  const series = methods.map(m => ({m, n: disp(m), data: summaries[m][key] || []}));
+  let ymax = 0.05;
+  series.forEach(s => s.data.forEach(v => { if (v > ymax) ymax = v; }));
+  ymax = Math.min(1, ymax * 1.12);
+
+  // 网格 + 轴
+  g.strokeStyle = 'rgba(0,0,0,.08)'; g.lineWidth = 1;
+  g.fillStyle = '#5f5e5a'; g.font = '11px ui-monospace,Menlo,monospace'; g.textAlign = 'right';
+  const ticks = 5;
+  for (let i = 0; i <= ticks; i++) {
+    const v = ymax * i / ticks, y = Y(v);
+    g.beginPath(); g.moveTo(padL, y); g.lineTo(W - padR, y); g.stroke();
+    g.fillText((v * 100).toFixed(0) + '%', padL - 8, y + 4);
+  }
+  g.textAlign = 'center';
+  for (let i = 0; i < 10; i++) {
+    g.fillStyle = '#8a8a85';
+    g.fillText((i + 1) + 'px', X(i), H - padB + 18);
+  }
+  g.textAlign = 'left';
+
+  series.forEach(s => {
+    if (!s.data.length) return;
+    g.strokeStyle = COLORS[s.n] || '#888';
+    g.lineWidth = (s.n === HLDD) ? 2.6 : 1.7;
+    g.beginPath();
+    s.data.slice(0, 10).forEach((v, i) => i ? g.lineTo(X(i), Y(v)) : g.moveTo(X(i), Y(v)));
+    g.stroke();
+    g.fillStyle = COLORS[s.n] || '#888';
+    s.data.slice(0, 10).forEach((v, i) => {
+      g.beginPath(); g.arc(X(i), Y(v), s.n === HLDD ? 3 : 2.2, 0, Math.PI * 2); g.fill();
+    });
+  });
+
+  const lg = document.getElementById(legendId);
+  lg.innerHTML = '';
+  methods.forEach(m => {
+    const sp = el('span');
+    sp.innerHTML = `<span class="sw" style="background:${COLORS[disp(m)]||'#888'}"></span>${disp(m)}`;
+    lg.appendChild(sp);
+  });
+}
+
+/* ---------------------------- 完成后：明细 + 连线图 ---------------------------- */
+async function onFinished(snap) {
+  $('#detailCard').classList.remove('hidden');
+  $('#vizCard').classList.remove('hidden');
+
+  const box = $('#detailBox');
+  box.innerHTML = '<span class="spinner"></span> 正在读取逐对明细…';
+  const data = {};
+  for (const m of snap.methods) {
+    try {
+      const r = await fetch(`${API_BASE}/job?id=${state.jobId}&pairs_for=${encodeURIComponent(m)}`);
+      const j = await r.json();
+      data[m] = j.pairs || [];
+    } catch (e) { data[m] = []; }
+  }
+  box.innerHTML = '';
+  snap.methods.forEach(m => box.appendChild(detailBlock(m, data[m])));
+
+  // 导出与取证：本轮的报表 / 连线图 / GPU 证据
+  $('#exportCard').classList.remove('hidden');
+  const rows = snap.methods.reduce((a, m) => a + (data[m] || []).length, 0);
+  $('#xlsxHint').textContent =
+    `3 个 sheet：逐对明细 ${rows} 行（${snap.methods.length} 方法 × ${snap.n_pairs} 对）`
+    + ` · 方法汇总 ${snap.methods.length} 行 · 运行环境 1 页。`;
+  $('#exportTag').className = 'badge done';
+  $('#exportTag').textContent = `${rows} 行明细`;
+  loadExports();
+  loadGpu();
+
+  // 单对模式：直接给每个方法的匹配连线图
+  const grid = $('#vizGrid');
+  grid.innerHTML = '';
+  if (snap.n_pairs === 1) {
+    const name = (data[snap.methods[0]] && data[snap.methods[0]][0]) ? data[snap.methods[0]][0].name : null;
+    if (name) {
+      snap.methods.forEach(m => {
+        const d = el('div','vizrow');
+        d.innerHTML = `<h4>${disp(m)} · ${name}</h4>
+          <img src="${API_BASE}/viz?subset=VIS_SAR&method=${encodeURIComponent(m)}&name=${encodeURIComponent(name)}&num_kps=${snap.num_kps}&job=${encodeURIComponent(state.jobId || '')}"
+               alt="${disp(m)} 匹配连线" loading="lazy">`;
+        grid.appendChild(d);
+      });
+    }
+  } else {
+    grid.innerHTML = '<div class="hint">匹配连线图只在「单对」范围下生成（避免一次渲染上千张图）。</div>';
+  }
+}
+
+function detailBlock(method, pairs) {
+  const det = el('details');
+  const fails = pairs.filter(p => !p.success).length;
+  det.innerHTML = `<summary>${disp(method)} · ${pairs.length} 对 · 失败 ${fails}</summary>`;
+  const t = el('table');
+  t.innerHTML = `<thead><tr><th>样本</th><th>匹配数</th><th>正确匹配 ncm</th>
+    <th>ME</th><th>RMSE</th><th>耗时 (s)</th><th>单应角点距离</th><th>真值方向</th></tr></thead>`;
+  const tb = el('tbody');
+  pairs.forEach(p => {
+    const tr = el('tr');
+    const t2 = (p.match_time === null || p.match_time === undefined) ? '—' : p.match_time.toFixed(2);
+    tr.innerHTML =
+      `<td class="mname">${p.name}</td>` +
+      `<td class="num">${p.n_matches}</td>` +
+      `<td class="num ${p.success ? '' : 'fail'}">${p.ncm}${p.success ? '' : ' ✗'}</td>` +
+      `<td class="num">${p.me === null ? '—' : p.me.toFixed(3)}</td>` +
+      `<td class="num">${p.rmse === null ? '—' : p.rmse.toFixed(3)}</td>` +
+      `<td class="num">${t2}</td>` +
+      `<td class="num">${p.corner_dist === null ? '—' : p.corner_dist.toFixed(2)}</td>` +
+      `<td class="num dim">${p.suffix || '—'}</td>`;
+    if (p.error) tr.title = p.error;
+    tb.appendChild(tr);
+  });
+  t.appendChild(tb);
+  det.appendChild(t);
+  return det;
+}
+
+function kpsNow() {
+  return (state.lastSnap && state.lastSnap.num_kps) || parseInt($('#kpsSelect').value, 10) || 1024;
+}
+
+/* 下载走「<a href=同源URL download>」，不要 fetch + blob。原因（实测踩过）：
+   1) await 会打断「用户手势」链路，Chrome 按"自动下载"静默拦掉
+      —— 服务端明明 200，用户什么都没拿到；连点几个下载时尤其必现。
+   2) 55 MB 的包要先整个读进内存，中间近 20 秒毫无反馈，看着像卡死。
+   直接给 <a> 一个同源 URL，浏览器原生下载：有进度条、不占内存。 */
+function startDownload(url, filename) {
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.rel = 'noopener';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+/* 小文件先探一下活，出错才弹提示；大文件别探，直接下。 */
+async function probeErr(url) {
+  const r = await fetch(url, { method: 'HEAD' });
+  return r.ok ? null : ('HTTP ' + r.status);
+}
+
+/* 匹配连线图打包：先问服务端有没有现成 zip；没有则起后台打包 + 轮询等待 */
+let vizPoll = null;
+
+async function loadExports() {
+  if (!state.jobId) return;
+  let d;
+  try { d = await (await fetch(`${API_BASE}/exports?kps=${kpsNow()}&kind=matches&fmt=jpg`)).json(); }
+  catch (e) { return; }
+  renderVizDl(d);
+  return d;
+}
+
+function renderVizDl(d) {
+  $('#vizNote').textContent =
+    `${d.kps} kps · 每个方法 424 张 · JPEG 打包 · 图种：${d.kind_label || d.kind}`;
+  const box = $('#vizDl');
+  box.innerHTML = '';
+  Object.keys(d.viz).forEach(m => {
+    const v = d.viz[m];
+    const line = el('div', 'vizline');
+    let meta, btn;
+    if (v.ready) {
+      meta = `${v.n_images} 张 · ${v.size_h} · 已就绪（${v.mtime}）`;
+      btn = `<button class="btn" data-dl="${m}">下载</button>`;
+    } else if (v.build && v.build.status === 'running') {
+      const p = v.build.total ? Math.round(100 * v.build.done / v.build.total) : 0;
+      meta = `正在服务端打包 ${v.build.done}/${v.build.total || v.n_images}（${p}%）`;
+      btn = `<button class="btn ghost" disabled>打包中</button>`;
+    } else if (v.build && v.build.status === 'error') {
+      meta = `打包失败：${v.build.error}`;
+      btn = `<button class="btn ghost" data-dl="${m}">重试</button>`;
+    } else {
+      meta = `${v.n_images} 张 · 尚未打包（首次点击需几十秒）`;
+      btn = `<button class="btn ghost" data-dl="${m}">生成并下载</button>`;
+    }
+    line.innerHTML = `<span class="vname">${disp(m)}</span><span class="vmeta">${meta}</span>${btn}`;
+    box.appendChild(line);
+  });
+  box.querySelectorAll('button[data-dl]').forEach(b => { b.onclick = () => downloadViz(b.dataset.dl); });
+}
+
+async function downloadViz(method) {
+  const url = `${API_BASE}/export/viz?method=${encodeURIComponent(method)}`
+            + `&kps=${kpsNow()}&kind=matches&fmt=jpg`
+            + (jobIdNow() ? `&job=${encodeURIComponent(jobIdNow())}` : '');
+  let r;
+  try { r = await fetch(url); } catch (e) { alert('请求失败：' + e); return; }
+  if (r.status === 202) {                       // 服务端刚开始后台打包
+    await loadExports();
+    if (vizPoll) return;
+    vizPoll = setInterval(async () => {
+      const d = await loadExports();
+      if (d && d.viz[method] && d.viz[method].ready) {
+        clearInterval(vizPoll); vizPoll = null;
+        startDownload(url, `${disp(method)}_${kpsNow()}kps_匹配连线图.zip`);
+      }
+    }, 3000);
+    return;
+  }
+  if (!r.ok) {
+    let msg = 'HTTP ' + r.status;
+    try { msg = (await r.json()).error || msg; } catch (e) {}
+    alert('导出失败：' + msg);
+    return;
+  }
+  // 大包是几十 MB，给个明确反馈，别让人以为点了没反应
+  const btn = document.querySelector(`#vizDl button[data-dl="${method}"]`);
+  if (btn) { btn.disabled = true; btn.textContent = '正在下载…'; }
+  startDownload(url, `${disp(method)}_${kpsNow()}kps_匹配连线图.zip`);
+  setTimeout(() => { if (btn) { btn.disabled = false; btn.textContent = '下载'; } }, 5000);
+}
+
+async function loadGpu() {
+  const box = $('#gpuBox');
+  box.textContent = '正在读取服务端 nvidia-smi …';
+  try {
+    const r = await fetch(`${API_BASE}/evidence/gpu?job=${encodeURIComponent(state.jobId || '')}`);
+    if (!r.ok) { box.textContent = '读取失败：HTTP ' + r.status; return; }
+    box.textContent = await r.text();
+  } catch (e) { box.textContent = '读取失败：' + e; }
+}
+
+function bindExportUI() {
+  $('#xlsxBtn').onclick = async () => {
+    if (!state.jobId) { alert('先跑一次评测'); return; }
+    const url = `${API_BASE}/export/xlsx?job=${encodeURIComponent(state.jobId)}`;
+    try {
+      const err = await probeErr(url);
+      if (err) { alert('导出失败：' + err); return; }
+    } catch (e) { alert('导出失败：' + e); return; }
+    startDownload(url,
+      `VIS_SAR_逐对明细_${state.jobId.slice(0, 6)}_${kpsNow()}kps.xlsx`);
+  };
+  $('#gpuBtn').onclick = loadGpu;
+  $('#gpuDlBtn').onclick = async () => {
+    const url = `${API_BASE}/evidence/gpu?job=${encodeURIComponent(state.jobId || '')}&download=1`;
+    try {
+      const err = await probeErr(url);
+      if (err) { alert('导出失败：' + err); return; }
+    } catch (e) { alert('导出失败：' + e); return; }
+    startDownload(url, `GPU运行证据_${(state.jobId || 'current').slice(0, 8)}.txt`);
+  };
+}
+
+boot();
+</script>
+</body>
+</html>
